@@ -165,6 +165,28 @@
 </head>
 <body>
 
+<!-- Password Protection -->
+<div id="pw-overlay" style="position:fixed;inset:0;background:#f4f5f9;display:flex;align-items:center;justify-content:center;z-index:9999">
+  <div style="background:#fff;border:1px solid #e8eaf0;border-radius:16px;padding:40px 36px;box-shadow:0 4px 24px rgba(0,0,0,.08);text-align:center;width:320px">
+    <div style="width:48px;height:48px;background:linear-gradient(135deg,#6c63ff,#a78bfa);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;margin:0 auto 16px">✦</div>
+    <h2 style="font-size:16px;font-weight:700;color:#1a1a2e;margin-bottom:6px">Claude Enterprise 사용 현황</h2>
+    <p style="font-size:12px;color:#6b7280;margin-bottom:24px">접근하려면 비밀번호를 입력하세요</p>
+    <input id="pw-input" type="password" placeholder="비밀번호 입력" onkeydown="if(event.key==='Enter')checkPw()" style="width:100%;padding:10px 14px;border:1.5px solid #e8eaf0;border-radius:8px;font-size:13px;outline:none;margin-bottom:10px;box-sizing:border-box"/>
+    <div id="pw-error" style="font-size:11px;color:#ef4444;margin-bottom:8px;display:none">비밀번호가 올바르지 않습니다</div>
+    <button onclick="checkPw()" style="width:100%;padding:10px;background:linear-gradient(135deg,#6c63ff,#8b83ff);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:600;cursor:pointer">확인</button>
+  </div>
+</div>
+<script>
+  function checkPw(){
+    if(document.getElementById('pw-input').value==='1300'){
+      document.getElementById('pw-overlay').style.display='none';
+    } else {
+      document.getElementById('pw-error').style.display='block';
+      document.getElementById('pw-input').value='';
+    }
+  }
+</script>
+
 <!-- Header -->
 <div class="header">
   <div class="logo">✦</div>
