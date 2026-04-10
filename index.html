@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Claude 팀 사용 현황 대시보드</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#f4f5f9;
+      --surface:#ffffff;
+      --surface2:#f8f9fc;
+      --border:#e8eaf0;
+      --border-focus:#6c63ff;
+      --text:#1a1a2e;
+      --text-muted:#6b7280;
+      --text-dim:#9ca3af;
+      --radius:12px;
+      --shadow:0 1px 4px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.06);
+      --shadow-hover:0 4px 12px rgba(0,0,0,.1),0 8px 24px rgba(0,0,0,.08);
+    }
+    body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans-serif;padding:28px 20px 60px;max-width:960px;margin:0 auto;font-size:14px}
+
+    /* ── Header ── */
+    .header{display:flex;align-items:center;gap:14px;margin-bottom:24px}
+    .logo{width:44px;height:44px;background:linear-gradient(135deg,#6c63ff,#a78bfa);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;box-shadow:0 4px 16px rgba(108,99,255,.3)}
+    .header h1{font-size:20px;font-weight:700;color:var(--text)}
+    .header p{font-size:12px;color:var(--text-muted);margin-top:2px}
+
+    /* ── Tabs ── */
+    .tab-bar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:24px}
+    .tab-btn{padding:8px 16px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);color:var(--text-muted);font-size:12px;font-weight:500;cursor:pointer;transition:all .2s;white-space:nowrap}
+    .tab-btn:hover{border-color:#6c63ff;color:#6c63ff;background:#f5f3ff}
+    .tab-btn.active{background:linear-gradient(135deg,#6c63ff,#8b83ff);border-color:transparent;color:#fff;font-weight:600;box-shadow:0 2px 8px rgba(108,99,255,.35)}
+
+    /* ── Section Title ── */
+    .section-title{font-size:13px;font-weight:600;color:var(--text-muted);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+    .section-title::before{content:'';display:block;width:3px;height:14px;background:linear-gradient(180deg,#6c63ff,#a78bfa);border-radius:2px}
+
+    /* ── Summary Cards ── */
+    .cards-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:20px}
+    .sum-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);transition:all .2s;cursor:default}
+    .sum-card:hover{box-shadow:var(--shadow-hover)}
+    .sum-card .icon{font-size:18px;margin-bottom:8px}
+    .sum-card .val{font-size:26px;font-weight:800;color:#6c63ff}
+    .sum-card .lbl{font-size:11px;color:var(--text-muted);margin-top:3px}
+
+    /* ── Dept Cards ── */
+    .dept-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
+    .dept-card{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);padding:16px;cursor:pointer;transition:all .2s;box-shadow:var(--shadow)}
+    .dept-card:hover{border-color:#6c63ff;box-shadow:var(--shadow-hover);transform:translateY(-1px)}
+    .dept-card .d-name{font-size:11px;color:var(--text-muted);margin-bottom:5px}
+    .dept-card .d-count{font-size:26px;font-weight:800;color:#6c63ff}
+    .dept-card .d-bar{margin-top:10px;height:3px;background:#e8eaf0;border-radius:2px;overflow:hidden}
+    .dept-card .d-bar-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,#6c63ff,#a78bfa)}
+
+    /* ── Chart Box ── */
+    .chart-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow)}
+    .chart-wrap{position:relative;height:200px}
+    .chart-wrap.tall{height:240px}
+    .chart-row{display:grid;grid-template-columns:250px 1fr;gap:16px;margin-bottom:16px}
+
+    /* ── Legend ── */
+    .legend{margin-top:12px;display:flex;flex-direction:column;gap:6px}
+    .legend-item{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--text-muted)}
+    .legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+    /* ── Insight Cards ── */
+    .insight-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow)}
+    .insight-item{padding:11px 0;border-bottom:1px solid var(--border);font-size:12.5px;color:var(--text-muted);line-height:1.7}
+    .insight-item:last-child{border-bottom:none;padding-bottom:0}
+    .insight-item strong{color:#6c63ff}
+
+    /* ── Rank Rows ── */
+    .rank-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
+    .rank-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)}
+    .rank-row:last-child{border-bottom:none}
+    .rank-num{width:22px;height:22px;border-radius:6px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#6c63ff;flex-shrink:0}
+    .rank-num.top{background:linear-gradient(135deg,#6c63ff,#a78bfa);color:#fff}
+    .rank-name{flex:1;font-size:13px}
+    .rank-bar-wrap{width:100px;height:4px;background:#e8eaf0;border-radius:2px}
+    .rank-bar{height:100%;border-radius:2px;background:linear-gradient(90deg,#6c63ff,#a78bfa)}
+    .rank-count{font-size:11px;color:var(--text-muted);min-width:30px;text-align:right}
+
+    /* ══ USER DETAIL PANEL ══ */
+    #panel-userdetail{display:none}
+
+    .ud-search-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+    .ud-search{flex:1;min-width:160px;border:1.5px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px;color:var(--text);outline:none;background:var(--surface);transition:border-color .2s}
+    .ud-search:focus{border-color:#6c63ff}
+    .ud-filter-btn{padding:7px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text-muted);font-size:11px;cursor:pointer;transition:all .15s;white-space:nowrap}
+    .ud-filter-btn:hover{border-color:#6c63ff;color:#6c63ff}
+    .ud-filter-btn.active{border-color:#6c63ff;color:#6c63ff;background:#f5f3ff;font-weight:600}
+
+    /* User card */
+    .user-cards-list{display:flex;flex-direction:column;gap:12px}
+    .user-detail-card{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);transition:all .2s}
+    .user-detail-card:hover{box-shadow:var(--shadow-hover)}
+    .udc-header{display:flex;align-items:flex-start;gap:14px;cursor:pointer}
+    .udc-avatar{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800;flex-shrink:0}
+    .udc-meta{flex:1;min-width:0}
+    .udc-meta h3{font-size:15px;font-weight:700;color:var(--text)}
+    .udc-meta .udc-sub{font-size:11px;color:var(--text-muted);margin-top:2px}
+    .udc-toggle{font-size:12px;color:var(--text-dim);cursor:pointer;padding:4px;user-select:none;flex-shrink:0}
+    .udc-desc{font-size:12.5px;color:var(--text-muted);line-height:1.7;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+    .udc-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+    .tag{font-size:11px;padding:3px 10px;border-radius:20px;font-weight:500;border:1px solid transparent}
+    .udc-convs{margin-top:14px;display:none}
+    .udc-conv-item{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)}
+    .udc-conv-item:last-child{border-bottom:none}
+    .udc-conv-dot{width:6px;height:6px;border-radius:50%;background:#6c63ff;flex-shrink:0;margin-top:5px}
+    .udc-conv-title{flex:1;font-size:13px;color:var(--text);font-weight:500}
+    .udc-conv-sub{font-size:11px;color:var(--text-dim);margin-top:2px}
+    .udc-conv-badge{font-size:10px;color:var(--text-muted);background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:2px 7px;white-space:nowrap;flex-shrink:0}
+
+    /* ══ DEPT PANEL ══ */
+    .dept-panel{display:none}
+    .dept-header{display:flex;align-items:baseline;gap:10px;margin-bottom:16px}
+    .dept-header h2{font-size:17px;font-weight:700}
+    .dept-badge{font-size:11px;background:#f5f3ff;color:#6c63ff;border:1px solid #c4b5fd;border-radius:20px;padding:2px 9px}
+    .conv-list{list-style:none}
+    .conv-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border);border-radius:8px;transition:background .15s}
+    .conv-item:hover{background:var(--surface2)}
+    .conv-item:last-child{border-bottom:none}
+    .conv-avatar{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0;background:linear-gradient(135deg,#6c63ff,#a78bfa)}
+    .conv-name{flex:1;font-size:13px;color:var(--text)}
+    .conv-user{font-size:11px;color:var(--text-muted);margin-top:1px}
+    .conv-msgs{font-size:10px;color:var(--text-muted);background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:2px 7px;white-space:nowrap}
+
+    /* ══ USERS GRID PANEL ══ */
+    .users-summary-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+    .u-stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;text-align:center;box-shadow:var(--shadow)}
+    .u-stat-card .u-val{font-size:26px;font-weight:800;color:#6c63ff}
+    .u-stat-card .u-lbl{font-size:11px;color:var(--text-muted);margin-top:3px}
+    .user-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
+    .user-card{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);transition:all .2s}
+    .user-card:hover{box-shadow:var(--shadow-hover);border-color:#a78bfa;transform:translateY(-1px)}
+    .user-card-top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+    .user-ava{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;flex-shrink:0}
+    .user-card-name{font-size:13px;font-weight:600;line-height:1.3}
+    .user-card-dept-badge{display:inline-block;font-size:10px;padding:2px 7px;border-radius:20px;margin-top:3px}
+    .user-card-stats{display:flex;justify-content:space-between;padding-top:9px;border-top:1px solid var(--border)}
+    .user-card-stat{text-align:center}
+    .user-card-stat .sv{font-size:15px;font-weight:700;color:#6c63ff}
+    .user-card-stat .sl{font-size:9px;color:var(--text-dim)}
+    .no-activity{opacity:.45}
+    .search-filter-row{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+    .search-input{flex:1;min-width:160px;background:var(--surface);border:1.5px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:12px;outline:none;transition:border-color .2s}
+    .search-input:focus{border-color:#6c63ff}
+    .filter-btn{padding:7px 12px;background:var(--surface);border:1.5px solid var(--border);border-radius:8px;color:var(--text-muted);font-size:11px;cursor:pointer;transition:all .15s;white-space:nowrap}
+    .filter-btn:hover{border-color:#6c63ff;color:#6c63ff}
+    .filter-btn.active{border-color:#6c63ff;color:#6c63ff;background:#f5f3ff;font-weight:600}
+
+    /* ── Footer ── */
+    .footer{text-align:center;font-size:10px;color:var(--text-dim);margin-top:36px}
+    .footer span{color:#6c63ff}
+
+    @media(max-width:640px){
+      .dept-grid{grid-template-columns:repeat(2,1fr)}
+      .chart-row{grid-template-columns:1fr}
+      .users-summary-row{grid-template-columns:repeat(2,1fr)}
+    }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="logo">✦</div>
+  <div>
+    <h1>Claude 팀 사용 현황</h1>
+    <p>아가방앤컴퍼니 · 2026.04.07 ~ 04.10 · 총 113건 대화 분석</p>
+  </div>
+</div>
+
+<!-- Tab Bar -->
+<div class="tab-bar" id="tabBar">
+  <button class="tab-btn active" onclick="showTab('overview')">전체 인사이트</button>
+  <button class="tab-btn" onclick="showTab('userdetail')">사용자별 상세</button>
+  <button class="tab-btn" onclick="showTab('pattern')">사용 패턴</button>
+  <button class="tab-btn" onclick="showTab('highlight')">주목할 점</button>
+  <button class="tab-btn" onclick="showTab('allusers')">전체 사용자</button>
+  <button class="tab-btn" onclick="showTab('marketing')">마케팅/기획</button>
+  <button class="tab-btn" onclick="showTab('it')">IT/개발</button>
+  <button class="tab-btn" onclick="showTab('design')">디자인/MD</button>
+  <button class="tab-btn" onclick="showTab('production')">생산/MD기획</button>
+  <button class="tab-btn" onclick="showTab('management')">경영/관리</button>
+  <button class="tab-btn" onclick="showTab('etc')">탐색/기타</button>
+</div>
+
+<!-- ════ 전체 인사이트 ════ -->
+<div id="panel-overview">
+  <div class="cards-row">
+    <div class="sum-card"><div class="icon">💬</div><div class="val">113</div><div class="lbl">총 대화 수</div></div>
+    <div class="sum-card"><div class="icon">📨</div><div class="val">759</div><div class="lbl">총 메시지</div></div>
+    <div class="sum-card"><div class="icon">👥</div><div class="val">59</div><div class="lbl">활동 사용자</div></div>
+    <div class="sum-card"><div class="icon">📅</div><div class="val">4</div><div class="lbl">분석 기간(일)</div></div>
+    <div class="sum-card"><div class="icon">🔥</div><div class="val">48</div><div class="lbl">일 최대 대화</div></div>
+    <div class="sum-card"><div class="icon">⚡</div><div class="val">71%</div><div class="lbl">계정 활성화율</div></div>
+  </div>
+
+  <div class="dept-grid">
+    <div class="dept-card" onclick="showTab('marketing')"><div class="d-name">마케팅/기획</div><div class="d-count">17건</div><div class="d-bar"><div class="d-bar-fill" style="width:49%"></div></div></div>
+    <div class="dept-card" onclick="showTab('it')"><div class="d-name">IT/개발</div><div class="d-count">18건</div><div class="d-bar"><div class="d-bar-fill" style="width:51%"></div></div></div>
+    <div class="dept-card" onclick="showTab('design')"><div class="d-name">디자인/MD</div><div class="d-count">27건</div><div class="d-bar"><div class="d-bar-fill" style="width:77%"></div></div></div>
+    <div class="dept-card" onclick="showTab('production')"><div class="d-name">생산/MD기획</div><div class="d-count">9건</div><div class="d-bar"><div class="d-bar-fill" style="width:26%"></div></div></div>
+    <div class="dept-card" onclick="showTab('management')"><div class="d-name">경영/관리</div><div class="d-count">7건</div><div class="d-bar"><div class="d-bar-fill" style="width:20%"></div></div></div>
+    <div class="dept-card" onclick="showTab('etc')"><div class="d-name">탐색/기타</div><div class="d-count">35건</div><div class="d-bar"><div class="d-bar-fill" style="width:100%"></div></div></div>
+  </div>
+
+  <div class="chart-row">
+    <div class="chart-box">
+      <div class="section-title">부서별 비중</div>
+      <div class="chart-wrap"><canvas id="donutChart"></canvas></div>
+      <div class="legend">
+        <div class="legend-item"><span class="legend-dot" style="background:#4F81BD"></span>마케팅/기획 15%</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#4CAF80"></span>IT/개발 16%</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#9B6FC5"></span>디자인/MD 24%</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#E57C3A"></span>생산/MD기획 8%</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#6c63ff"></span>경영/관리 6%</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#9ca3af"></span>탐색/기타 31%</div>
+      </div>
+    </div>
+    <div class="rank-box">
+      <div class="section-title">사용자 Top 10</div>
+      <div id="rankOverview"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ 사용자별 상세 ════ -->
+<div id="panel-userdetail" class="dept-panel">
+  <div class="ud-search-row">
+    <input class="ud-search" id="udSearch" placeholder="이름으로 검색..." oninput="renderUserDetail()"/>
+    <button class="ud-filter-btn active" data-f="all" onclick="setUdFilter('all',this)">전체</button>
+    <button class="ud-filter-btn" data-f="마케팅/기획" onclick="setUdFilter('마케팅/기획',this)">마케팅/기획</button>
+    <button class="ud-filter-btn" data-f="IT/개발" onclick="setUdFilter('IT/개발',this)">IT/개발</button>
+    <button class="ud-filter-btn" data-f="디자인/MD" onclick="setUdFilter('디자인/MD',this)">디자인/MD</button>
+    <button class="ud-filter-btn" data-f="생산/MD기획" onclick="setUdFilter('생산/MD기획',this)">생산/MD기획</button>
+    <button class="ud-filter-btn" data-f="경영/관리" onclick="setUdFilter('경영/관리',this)">경영/관리</button>
+    <button class="ud-filter-btn" data-f="탐색/기타" onclick="setUdFilter('탐색/기타',this)">탐색/기타</button>
+  </div>
+  <div class="user-cards-list" id="userDetailList"></div>
+</div>
+
+<!-- ════ 사용 패턴 ════ -->
+<div id="panel-pattern" class="dept-panel">
+  <div style="display:grid;gap:16px">
+    <div class="chart-box">
+      <div class="section-title">일별 대화·메시지 추이</div>
+      <div class="chart-wrap tall"><canvas id="dailyChart"></canvas></div>
+    </div>
+    <div class="chart-box">
+      <div class="section-title">시간대별 사용 패턴 (사용자 메시지 기준)</div>
+      <div class="chart-wrap tall"><canvas id="hourlyChart"></canvas></div>
+    </div>
+    <div class="chart-box">
+      <div class="section-title">시간대 히트맵</div>
+      <div id="heatmap" style="display:grid;grid-template-columns:repeat(12,1fr);gap:5px;margin-top:4px"></div>
+      <div style="display:flex;align-items:center;gap:8px;font-size:10px;color:var(--text-dim);margin-top:10px">
+        <div style="width:12px;height:12px;background:#e8eaf0;border-radius:3px;border:1px solid #ddd"></div>없음
+        <div style="width:12px;height:12px;background:#c7c0f5;border-radius:3px"></div>낮음
+        <div style="width:12px;height:12px;background:#6c63ff;border-radius:3px"></div>높음
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ 주목할 점 ════ -->
+<div id="panel-highlight" class="dept-panel">
+  <div style="display:grid;gap:14px">
+    <div class="insight-box">
+      <div class="section-title">주요 발견사항</div>
+      <div class="insight-item">🏆 <strong>디자인/MD 팀</strong>이 27건(24%)으로 팀 내 최다 활용. 그래픽 작업, 창의적 프롬프트, 이미지 제작 등 실무 전반에 적극 활용 중.</div>
+      <div class="insight-item">🔧 <strong>김관호님</strong>은 LMS 문구 정제 채널, 고객센터 챗봇, 멤버십 품의서 작성 등 반복 실무 자동화에 가장 체계적으로 활용 (11건, 팀 최다).</div>
+      <div class="insight-item">💻 <strong>이동호님</strong>은 S3→Snowflake ERP 연동, DGX Spark LLM 서버 구성, 근태 시스템 연동 등 기술적으로 가장 심화된 패턴을 보임.</div>
+      <div class="insight-item">🌐 <strong>정미금님</strong>은 골지스판·면모달 등 소재명 중국어 번역을 반복 활용 중. 해당 작업은 Claude 프로젝트로 만들면 효율성이 크게 향상될 것.</div>
+      <div class="insight-item">🌙 <strong>심야(0~2시) 활용이 가장 많음.</strong> 00시(65건)·02시(61건)가 피크. 업무 마감 후 야간 활용 패턴이 두드러짐.</div>
+      <div class="insight-item">📊 <strong>탐색/기타 35건(31%)</strong>은 온보딩·날씨·인사 등 초기 탐색 단계. 이 중 다수가 실무로 전환 가능성 있음. 온보딩 가이드 제공 권장.</div>
+    </div>
+    <div class="chart-box">
+      <div class="section-title">개선 제안</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px">
+        <div style="background:#f5f3ff;border:1px solid #c4b5fd;border-radius:10px;padding:14px">
+          <div style="font-size:13px;font-weight:600;color:#6c63ff;margin-bottom:6px">🎯 프로젝트화 추천</div>
+          <div style="font-size:12px;color:#4c4a72;line-height:1.6">정미금님의 소재명 번역, 김관호님의 LMS 문구 정제·고객센터 챗봇을 Claude 프로젝트로 만들어 팀 전체가 공유하면 효율이 높아집니다.</div>
+        </div>
+        <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:14px">
+          <div style="font-size:13px;font-weight:600;color:#16a34a;margin-bottom:6px">📚 온보딩 강화</div>
+          <div style="font-size:12px;color:#374151;line-height:1.6">미활동 24명 대상으로 부서별 Claude 활용 가이드를 배포하면 활성화율이 빠르게 향상될 것으로 예상됩니다.</div>
+        </div>
+        <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:14px">
+          <div style="font-size:13px;font-weight:600;color:#ea580c;margin-bottom:6px">🔗 시스템 연동</div>
+          <div style="font-size:12px;color:#374151;line-height:1.6">이동호님이 테스트 중인 ERP→Snowflake, DGX LLM 서버 구성이 완료되면 사내 AI 인프라가 크게 강화될 전망입니다.</div>
+        </div>
+        <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:14px">
+          <div style="font-size:13px;font-weight:600;color:#0284c7;margin-bottom:6px">📈 성과 측정</div>
+          <div style="font-size:12px;color:#374151;line-height:1.6">활발한 활용 부서(디자인/MD, 마케팅/기획) 대상으로 업무 시간 절감 사례를 수집하여 ROI를 측정하는 것을 권장합니다.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ 전체 사용자 ════ -->
+<div id="panel-allusers" class="dept-panel">
+  <div class="users-summary-row">
+    <div class="u-stat-card"><div class="u-val">83</div><div class="u-lbl">전체 등록</div></div>
+    <div class="u-stat-card"><div class="u-val">59</div><div class="u-lbl">활동 사용자</div></div>
+    <div class="u-stat-card"><div class="u-val">24</div><div class="u-lbl">미활동</div></div>
+    <div class="u-stat-card"><div class="u-val">71%</div><div class="u-lbl">활성화율</div></div>
+  </div>
+  <div class="search-filter-row">
+    <input class="search-input" id="allUserSearch" placeholder="이름으로 검색..." oninput="filterAllUsers()"/>
+    <button class="filter-btn active" onclick="setAllFilter('all',this)">전체</button>
+    <button class="filter-btn" onclick="setAllFilter('마케팅/기획',this)">마케팅/기획</button>
+    <button class="filter-btn" onclick="setAllFilter('IT/개발',this)">IT/개발</button>
+    <button class="filter-btn" onclick="setAllFilter('디자인/MD',this)">디자인/MD</button>
+    <button class="filter-btn" onclick="setAllFilter('생산/MD기획',this)">생산/MD기획</button>
+    <button class="filter-btn" onclick="setAllFilter('경영/관리',this)">경영/관리</button>
+    <button class="filter-btn" onclick="setAllFilter('탐색/기타',this)">탐색/기타</button>
+    <button class="filter-btn" onclick="setAllFilter('none',this)">미활동</button>
+  </div>
+  <div class="user-grid" id="allUserGrid"></div>
+</div>
+
+<!-- ════ 부서별 패널들 ════ -->
+<div id="panel-marketing" class="dept-panel">
+  <div class="dept-header"><h2>마케팅/기획</h2><span class="dept-badge">17건</span></div>
+  <div class="chart-box"><div class="section-title">대화 목록</div><ul class="conv-list" id="list-marketing"></ul></div>
+  <div class="rank-box" style="margin-top:14px"><div class="section-title">활용자 Top 5</div><div id="rank-marketing"></div></div>
+</div>
+<div id="panel-it" class="dept-panel">
+  <div class="dept-header"><h2>IT/개발</h2><span class="dept-badge">18건</span></div>
+  <div class="chart-box"><div class="section-title">대화 목록</div><ul class="conv-list" id="list-it"></ul></div>
+  <div class="rank-box" style="margin-top:14px"><div class="section-title">활용자 Top 5</div><div id="rank-it"></div></div>
+</div>
+<div id="panel-design" class="dept-panel">
+  <div class="dept-header"><h2>디자인/MD</h2><span class="dept-badge">27건</span></div>
+  <div class="chart-box"><div class="section-title">대화 목록</div><ul class="conv-list" id="list-design"></ul></div>
+  <div class="rank-box" style="margin-top:14px"><div class="section-title">활용자 Top 5</div><div id="rank-design"></div></div>
+</div>
+<div id="panel-production" class="dept-panel">
+  <div class="dept-header"><h2>생산/MD기획</h2><span class="dept-badge">9건</span></div>
+  <div class="chart-box"><div class="section-title">대화 목록</div><ul class="conv-list" id="list-production"></ul></div>
+  <div class="rank-box" style="margin-top:14px"><div class="section-title">활용자 Top 5</div><div id="rank-production"></div></div>
+</div>
+<div id="panel-management" class="dept-panel">
+  <div class="dept-header"><h2>경영/관리</h2><span class="dept-badge">7건</span></div>
+  <div class="chart-box"><div class="section-title">대화 목록</div><ul class="conv-list" id="list-management"></ul></div>
+  <div class="rank-box" style="margin-top:14px"><div class="section-title">활용자 Top 5</div><div id="rank-management"></div></div>
+</div>
+<div id="panel-etc" class="dept-panel">
+  <div class="dept-header"><h2>탐색/기타</h2><span class="dept-badge">35건</span></div>
+  <div class="chart-box"><div class="section-title">대화 목록</div><ul class="conv-list" id="list-etc"></ul></div>
+  <div class="rank-box" style="margin-top:14px"><div class="section-title">활용자 Top 5</div><div id="rank-etc"></div></div>
+</div>
+
+<div class="footer"><p>마지막 업데이트 <span>2026-04-10</span> · 아가방앤컴퍼니 Claude 사용 분석 · by <span>유영민</span></p></div>
+
+<script>
+// ════ DATA ════
+const DEPT_DATA = {
+  marketing:[
+    {name:"5월 아가방좋은박스 상세페이지 및 6월 이미지 요청",user:"김관호",msgs:4},
+    {name:"아가방 좋은 박스 4월 당첨자 발표",user:"김관호",msgs:2},
+    {name:"픽셀과 광고추적관련 질문",user:"김관호",msgs:2},
+    {name:"설득력 있는 카피 작성하기",user:"조은정",msgs:2},
+    {name:"멤버십 신규가입 혜택 분담율 변경 품의",user:"김관호",msgs:8},
+    {name:"최고의 시장 진출 전략 연구하기",user:"이진성",msgs:4},
+    {name:"Outlook 자동 발송 메일 추적하기",user:"유영민",msgs:10},
+    {name:"콘텐츠 캘린더 계획하기",user:"양다빈",msgs:4},
+    {name:"에뜨와몰 상세페이지 이미지를 텍스트 기반으로 변환",user:"여름",msgs:6},
+    {name:"★아가방앤컴퍼니 고객센터",user:"김관호",msgs:6},
+    {name:"★LMS 문구 정제 기준 및 포맷 가이드",user:"김관호",msgs:22},
+    {name:"전략을 개발하고 다듬는 것을 도와주세요",user:"여름",msgs:6},
+    {name:"유아 수면 유도등 시장 현황",user:"조생곤",msgs:4},
+    {name:"콘텐츠 데이터화 및 샘플 데이터 생성",user:"유영민",msgs:4},
+    {name:"Claude 엔터프라이즈와 일반 계정 비교",user:"김관호",msgs:12},
+    {name:"콘텐츠 템플릿 개발하기",user:"이동호",msgs:4},
+    {name:"시공매트 상세페이지 기획",user:"임가람",msgs:19},
+  ],
+  it:[
+    {name:"원드라이브 웹 참조 문제 해결",user:"정선교",msgs:18},
+    {name:"시험성적서 데이터 엑셀 정리",user:"정미금",msgs:4},
+    {name:"편집 일정표 개발하기",user:"안예지",msgs:4},
+    {name:"Claude의 개인 맞춤 설정과 데이터 정확성",user:"김관호",msgs:2},
+    {name:"근태정보 확인 및 보고",user:"이동호",msgs:10},
+    {name:"복잡한 주제를 처음부터 이해할 수 있게 도와주세요",user:"형님",msgs:6},
+    {name:"어제 아웃룩 이메일 확인",user:"ILHAE CHO",msgs:6},
+    {name:"노션 CSV 파일 한글 인코딩 문제 해결",user:"정승범",msgs:20},
+    {name:"KPI 대시보드 개발하기",user:"윤석호",msgs:2},
+    {name:"데이터를 테스트와 이미지로 분리하여 HTML 파일 생성",user:"유영민",msgs:2},
+    {name:"API 세션 연결 가능성 분석",user:"이동호",msgs:4},
+    {name:"개인적 관심사를 바탕으로 비즈니스 생태계 개발하기",user:"주호",msgs:4},
+    {name:"DGX Spark에서 GEMMA4 LLM 서비스 구성",user:"이동호",msgs:6},
+    {name:"편집 일정표 개발하기",user:"김예원",msgs:4},
+    {name:"S3를 통한 Snowflake 데이터 연동",user:"이동호",msgs:8},
+    {name:"웹페이지 형식으로 내용 정리",user:"예감",msgs:2},
+    {name:"이해관계자 커뮤니케이션 개발하기",user:"한경훈",msgs:2},
+    {name:"노션 데이터베이스 대시보드 연동 문제",user:"ILHAE CHO",msgs:8},
+  ],
+  design:[
+    {name:"아동복 패턴 제작 지원",user:"김지혜",msgs:2},
+    {name:"사진 구도를 프롬프트로 변환하기",user:"다은",msgs:4},
+    {name:"아가방앤컴퍼니 리테일 그래픽디자인 업무",user:"조은정",msgs:12},
+    {name:"가장 아름다운 실수에서 영감을 받은 작품 만들기",user:"김명미",msgs:4},
+    {name:"경쟁사 분석 수행하기",user:"장한희",msgs:2},
+    {name:"제 창의적 스타일을 파악하는데 도움을 주세요",user:"goneiz",msgs:4},
+    {name:"더 나은 관리자가 되기 위한 조언을 해주세요",user:"정미금",msgs:8},
+    {name:"좋은 강의 노트 만들기",user:"eunji jung",msgs:2},
+    {name:"비즈니스 지표 분석하기",user:"박소리",msgs:2},
+    {name:"수업 또는 교육과정 설계하기",user:"혜령",msgs:4},
+    {name:"Adobe Illustrator clipping mask error fix",user:"다은",msgs:20},
+    {name:"제 글쓰기 스타일을 유명 작가들과 비교해주세요",user:"형진",msgs:4},
+    {name:"제 개인적 가치관을 바탕으로 인터랙티브 설치물을 디자인해주세요",user:"초코푸들",msgs:2},
+    {name:"기술 다이어그램 작성하기",user:"양순과장",msgs:2},
+    {name:"팀원들을 미소 짓게 할 코딩 이스터에그 만들기",user:"희주",msgs:4},
+    {name:"고객 여정 만들기",user:"신림",msgs:2},
+    {name:"원피스 치마 무늬 변경 프롬프트",user:"다은",msgs:2},
+    {name:"창의적 사고 기법 논의하기",user:"권진",msgs:4},
+    {name:"전설적인 창의적 오프사이트 설계 도움받기",user:"정승범",msgs:4},
+    {name:"창의적 팀을 놀라게 할 아이디어 워크샵 개요 작성하기",user:"미경",msgs:10},
+    {name:"사업 확장 기회 계획하기",user:"신한승",msgs:22},
+    {name:"조직 구조 계획하기",user:"조춘기",msgs:10},
+    {name:"예시를 통해 제 디자인 미학을 분석해주세요",user:"본부장님",msgs:38},
+    {name:"예술 해석에 대해 논의하기",user:"한영숙",msgs:2},
+    {name:"창의적 컨셉 브레인스토밍하기",user:"권하린",msgs:4},
+    {name:"효과적인 CTA 작성하기",user:"원소임",msgs:4},
+    {name:"750x750 제품 이미지 제작",user:"changhee",msgs:4},
+  ],
+  production:[
+    {name:"골지스판의 중국어 표현",user:"정미금",msgs:12},
+    {name:"Analyzing workbooks with Claude",user:"김관호",msgs:4},
+    {name:"털방울 공정 담당 부서 정리",user:"정승범",msgs:24},
+    {name:"27SS 생산 방향 보고 준비",user:"윤석호",msgs:4},
+    {name:"브레짜 젖병세척소독기 브랜드 및 제조국",user:"조생곤",msgs:8},
+    {name:"2027 SS 시즌 기획보고 분석 및 개선안",user:"신상국 대표이사",msgs:2},
+    {name:"AI 어시스턴트의 핵심 역량",user:"유병일",msgs:6},
+    {name:"의류 리오더 생산 관리 KPI",user:"최성민",msgs:2},
+    {name:"프로세스 구축",user:"주호",msgs:12},
+  ],
+  management:[
+    {name:"한앤브라더스 지분 담보 계약서 작성",user:"조춘기",msgs:10},
+    {name:"대표이사 클로드 설정 및 협업 지침 작성",user:"신상국 대표이사",msgs:2},
+    {name:"랑시코리아와 아가방 내부거래 절차 및 계약서",user:"정선교",msgs:12},
+    {name:"전문적인 기술 개발하기",user:"여울",msgs:12},
+    {name:"양도세 납부 의무 확인",user:"귀부인",msgs:2},
+    {name:"엔터프라이즈 요금제 대화 공유 범위",user:"귀부인",msgs:6},
+    {name:"PPT 발표 자료 정리",user:"예감",msgs:16},
+  ],
+  etc:[
+    {name:"주말 날씨 확인",user:"이승국",msgs:2},{name:"좋은 하루 되길",user:"정미금",msgs:8},
+    {name:"한국어 번역 요청",user:"정미금",msgs:2},{name:"Initial greeting",user:"김명화",msgs:2},
+    {name:"(제목없음)",user:"김관호",msgs:2},{name:"(제목없음)",user:"김명화",msgs:4},
+    {name:"Greeting",user:"김명화",msgs:66},{name:"아가방 회사 정보",user:"김상준",msgs:2},
+    {name:"노션 영업관리팀 설정",user:"이진성",msgs:2},{name:"(제목없음)",user:"suji",msgs:6},
+    {name:"MD 업무 협력 방안",user:"조정환",msgs:2},{name:"노션에서 클로드 작업내용 표시하기",user:"신광호",msgs:8},
+    {name:"(제목없음)",user:"조은아",msgs:2},{name:"오늘 날씨 확인",user:"기훈",msgs:2},
+    {name:"오늘 날씨 확인",user:"현우",msgs:2},{name:"후지 X-E5 기능 설명",user:"김명화",msgs:12},
+    {name:"(제목없음)",user:"이동호",msgs:6},{name:"삼성전자 주식 매수 시점 판단",user:"김명화",msgs:14},
+    {name:"안녕하세요",user:"김장환",msgs:2},{name:"해드의문구 수정 방법",user:"조생곤",msgs:4},
+    {name:"Skill command reference",user:"이동호",msgs:2},{name:"오늘 서울 날씨",user:"현우",msgs:10},
+    {name:"(제목없음)",user:"이동영",msgs:4},{name:"오늘 내일 일정 확인",user:"이동호",msgs:6},
+    {name:"다운로드 파일이 작동하지 않음",user:"ILHAE CHO",msgs:2},{name:"코워킹 공간",user:"예감",msgs:2},
+    {name:"금액 확인",user:"유영민",msgs:2},{name:"YouTube 영상 제품 설명 요청",user:"ILHAE CHO",msgs:10},
+    {name:"면모달골지스판 중국어 번역",user:"정미금",msgs:8},{name:"사용방법 안내",user:"한영숙",msgs:4},
+    {name:"싱글맘의 정의",user:"조생곤",msgs:2},{name:"기능 설명 요청",user:"유영민",msgs:6},
+    {name:"NH농협은행 역삼금융센터 업무 범위",user:"김관호",msgs:2},{name:"주말 전국 날씨 예보",user:"이승국",msgs:2},
+    {name:"(제목없음)",user:"셀라",msgs:0},
+  ],
+};
+
+// ── User detail data ──
+const DEPT_COLORS={
+  '마케팅/기획':{ava:'#4F81BD',bg:'#eff6ff',border:'#bfdbfe',text:'#1d4ed8'},
+  'IT/개발':{ava:'#4CAF80',bg:'#f0fdf4',border:'#bbf7d0',text:'#15803d'},
+  '디자인/MD':{ava:'#9B6FC5',bg:'#faf5ff',border:'#e9d5ff',text:'#7e22ce'},
+  '생산/MD기획':{ava:'#E57C3A',bg:'#fff7ed',border:'#fed7aa',text:'#c2410c'},
+  '경영/관리':{ava:'#6c63ff',bg:'#f5f3ff',border:'#c4b5fd',text:'#4c1d95'},
+  '탐색/기타':{ava:'#9ca3af',bg:'#f9fafb',border:'#e5e7eb',text:'#4b5563'},
+  'none':{ava:'#d1d5db',bg:'#f9fafb',border:'#e5e7eb',text:'#9ca3af'},
+};
+
+const USER_DETAILS=[
+  {name:"김관호",total:11,msgs:66,dept:"마케팅/기획",team:"기획마케팅팀",
+   desc:"CRM 마케터로 Claude를 업무 자동화 도구로 가장 체계적으로 활용. LMS 문구 정제 전용 채널, 고객센터 챗봇 설정, 품의서 작성, 광고 픽셀 개념 파악 등 마케팅 전반에 걸쳐 사용. Claude 엔터프라이즈 기능도 적극적으로 탐색 중.",
+   tags:["LMS문구정제","고객센터챗봇","품의서","CRM","광고픽셀"],
+   convs:[
+     {t:"★LMS 문구 정제 기준 및 포맷 가이드",d:"LMS 콘텐츠 문구 정제 기준 및 포맷 가이드 작성",m:22},
+     {t:"Claude 엔터프라이즈와 일반 계정 비교",d:"엔터프라이즈 기능 및 데이터 보안 정책 비교",m:12},
+     {t:"멤버십 신규가입 혜택 분담율 변경 품의",d:"마케팅 품의서 작성 보조",m:8},
+     {t:"★아가방앤컴퍼니 고객센터",d:"고객센터 챗봇 설정 및 응대 스크립트 작성",m:6},
+     {t:"5월 아가방좋은박스 상세페이지 및 6월 이미지 요청",d:"상세페이지 기획 및 이미지 콘셉트 요청",m:4},
+     {t:"픽셀과 광고추적관련 질문",d:"Meta 픽셀 및 광고 추적 개념 파악",m:2},
+   ]},
+  {name:"이동호",total:8,msgs:46,dept:"IT/개발",team:"IT팀",
+   desc:"ERP→S3→Snowflake 데이터 파이프라인, DGX Spark 기반 사내 LLM 구축, 근태·이메일·일정 확인 등 IT 인프라 전반을 Claude와 함께 설계·운영. 가장 기술적으로 심화된 활용 패턴.",
+   tags:["ERP→Snowflake","LLM서버","Outlook연동","근태시스템","DGX Spark"],
+   convs:[
+     {t:"S3를 통한 Snowflake 데이터 연동",d:"아가방 ERP → S3 → Snowflake 연동 및 Airflow 처리",m:8},
+     {t:"근태정보 확인 및 보고",d:"사내 시스템 로그인 후 근태정보 확인 시도",m:10},
+     {t:"DGX Spark에서 GEMMA4 LLM 서비스 구성",d:"사내 LLM 서버 구성 가능성 및 방법 가이드",m:6},
+     {t:"오늘 내일 일정 확인",d:"캘린더·이메일·주간 이슈 확인",m:6},
+     {t:"API 세션 연결 가능성 분석",d:"외부 사이트 API 멀티 세션 연결 가능성 분석",m:4},
+   ]},
+  {name:"정미금",total:6,msgs:42,dept:"생산/MD기획",team:"생산팀",
+   desc:"소재명 중국어 번역(골지스판, 면모달골지스판 등) 반복 활용 중. 시험성적서 데이터 엑셀 정리, 자기계발 조언 등 다양한 분야에서 활용. 해당 번역 작업은 프로젝트화 시 효율성이 크게 향상될 것.",
+   tags:["소재명번역","중국어","엑셀정리","생산관리"],
+   convs:[
+     {t:"골지스판의 중국어 표현",d:"소재명 중국어 번역 요청",m:12},
+     {t:"면모달골지스판 중국어 번역",d:"추가 소재명 번역",m:8},
+     {t:"좋은 하루 되길",d:"일상적 인사 및 대화",m:8},
+     {t:"더 나은 관리자가 되기 위한 조언을 해주세요",d:"리더십·관리 스킬 향상 조언",m:8},
+     {t:"시험성적서 데이터 엑셀 정리",d:"시험성적서 데이터 구조화 작업",m:4},
+   ]},
+  {name:"김명화",total:5,msgs:98,dept:"탐색/기타",team:"탐색중",
+   desc:"주로 탐색 단계에서 Claude와 깊이 있는 대화 중. 한 대화에서 66개의 메시지를 주고받으며 Claude를 집중적으로 탐색. 카메라 기능, 금융 정보 등 개인적 관심사 질문이 많음.",
+   tags:["탐색중","카메라정보","주식정보","활발한탐색"],
+   convs:[
+     {t:"Greeting",d:"66개 메시지의 집중적인 탐색 대화",m:66},
+     {t:"삼성전자 주식 매수 시점 판단",d:"주식 투자 시점 분석 요청",m:14},
+     {t:"후지 X-E5 기능 설명",d:"카메라 기능 및 스펙 문의",m:12},
+   ]},
+  {name:"유영민",total:5,msgs:24,dept:"마케팅/기획",team:"기획팀",
+   desc:"마케팅 자동화와 데이터 처리 업무에 Claude 활용. Outlook 이메일 추적, HTML 파일 생성, 콘텐츠 데이터 구조화 등 실무 작업 중심. Claude 대시보드 구축 등 팀 인프라 작업도 진행 중.",
+   tags:["마케팅자동화","HTML생성","이메일추적","콘텐츠기획"],
+   convs:[
+     {t:"Outlook 자동 발송 메일 추적하기",d:"Outlook 자동 메일 발송 추적 방법 탐색",m:10},
+     {t:"기능 설명 요청",d:"Claude 기능 안내 및 활용 방법",m:6},
+     {t:"콘텐츠 데이터화 및 샘플 데이터 생성",d:"콘텐츠 데이터 구조화 작업",m:4},
+   ]},
+  {name:"조생곤",total:4,msgs:18,dept:"탐색/기타",team:"MD팀",
+   desc:"MD 업무와 관련된 제품 정보 조사, 문구 수정 등에 활용. 유아용품 시장 현황 분석, 제품 브랜드 조사 등 MD 실무 용도가 많음.",
+   tags:["제품조사","MD업무","시장현황"],
+   convs:[
+     {t:"브레짜 젖병세척소독기 브랜드 및 제조국",d:"제품 브랜드·제조 정보 조사",m:8},
+     {t:"유아 수면 유도등 시장 현황",d:"유아용품 시장 동향 분석",m:4},
+     {t:"해드의문구 수정 방법",d:"헤드 문구 수정 방법 문의",m:4},
+   ]},
+  {name:"ILHAE CHO",total:4,msgs:26,dept:"IT/개발",team:"IT팀",
+   desc:"Outlook 이메일 관리, 노션 데이터베이스 연동 문제 해결 등 업무 도구 활용. YouTube 제품 영상 설명 추출 등 콘텐츠 업무도 포함.",
+   tags:["이메일관리","노션연동","업무자동화"],
+   convs:[
+     {t:"노션 데이터베이스 대시보드 연동 문제",d:"노션 DB 대시보드 연동 이슈 해결",m:8},
+     {t:"YouTube 영상 제품 설명 요청",d:"YouTube 영상에서 제품 정보 추출",m:10},
+     {t:"어제 아웃룩 이메일 확인",d:"Outlook 이메일 검색 및 확인",m:6},
+   ]},
+  {name:"다은",total:3,msgs:26,dept:"디자인/MD",team:"디자인팀",
+   desc:"AI 이미지 생성을 위한 프롬프트 작성, Adobe Illustrator 오류 해결 등 디자인 실무에 직접적으로 활용. Illustrator 문제 해결에서 가장 많은 메시지를 주고받음.",
+   tags:["이미지프롬프트","일러스트레이터","디자인실무","AI이미지"],
+   convs:[
+     {t:"Adobe Illustrator clipping mask error fix",d:"AI 클리핑 마스크 오류 원인 분석 및 해결",m:20},
+     {t:"사진 구도를 프롬프트로 변환하기",d:"사진 촬영 구도를 AI 이미지 생성 프롬프트로 변환",m:4},
+     {t:"원피스 치마 무늬 변경 프롬프트",d:"의류 디자인 변경을 위한 프롬프트 작성",m:2},
+   ]},
+  {name:"정승범",total:3,msgs:48,dept:"생산/MD기획",team:"생산팀",
+   desc:"생산 공정 담당 부서 정리, 노션 CSV 한글 인코딩 문제 해결 등 실무 문제 해결에 적극 활용. 총 48개 메시지로 활발한 소통을 보임.",
+   tags:["공정정리","노션CSV","데이터처리","한글인코딩"],
+   convs:[
+     {t:"털방울 공정 담당 부서 정리",d:"생산 공정 관련 담당 부서 및 역할 정리",m:24},
+     {t:"노션 CSV 파일 한글 인코딩 문제 해결",d:"노션 내보내기 CSV 파일 한글 깨짐 문제 해결",m:20},
+     {t:"전설적인 창의적 오프사이트 설계 도움받기",d:"팀 오프사이트 행사 기획",m:4},
+   ]},
+  {name:"예감",total:3,msgs:20,dept:"탐색/기타",team:"탐색중",
+   desc:"PPT 발표 자료 정리, 웹페이지 형식 변환 등 문서 작업에 주로 활용.",
+   tags:["PPT","문서작업","웹페이지"],
+   convs:[
+     {t:"PPT 발표 자료 정리",d:"발표 자료 구조 정리 및 개선",m:16},
+     {t:"웹페이지 형식으로 내용 정리",d:"정보를 웹페이지 형식으로 재구성",m:2},
+     {t:"코워킹 공간",d:"코워킹 공간 관련 탐색",m:2},
+   ]},
+  {name:"조은정",total:2,msgs:14,dept:"디자인/MD",team:"디자인팀",
+   desc:"아가방앤컴퍼니 리테일 그래픽디자인 업무 전반에 Claude 활용. 카피 작성 보조도 포함.",
+   tags:["리테일디자인","카피","그래픽"],
+   convs:[
+     {t:"아가방앤컴퍼니 리테일 그래픽디자인 업무",d:"리테일 그래픽 디자인 업무 전반 보조",m:12},
+     {t:"설득력 있는 카피 작성하기",d:"마케팅 카피 작성",m:2},
+   ]},
+  {name:"정선교",total:2,msgs:30,dept:"IT/개발",team:"IT팀",
+   desc:"OneDrive 웹 참조 문제 해결, 계약서 작성 보조 등 다양한 실무 업무에 활용. 메시지 수가 많아 깊은 탐색 패턴을 보임.",
+   tags:["OneDrive","계약서","문서작업"],
+   convs:[
+     {t:"원드라이브 웹 참조 문제 해결",d:"OneDrive 웹 레퍼런스 연결 오류 해결",m:18},
+     {t:"랑시코리아와 아가방 내부거래 절차 및 계약서",d:"계열사 내부거래 계약서 작성",m:12},
+   ]},
+  {name:"윤석호",total:2,msgs:6,dept:"생산/MD기획",team:"생산팀",
+   desc:"27SS 생산 방향 보고 준비, KPI 대시보드 개발 등 생산 기획 업무에 활용.",
+   tags:["생산기획","KPI","SS시즌보고"],
+   convs:[
+     {t:"27SS 생산 방향 보고 준비",d:"27SS 시즌 생산 방향 보고서 작성 보조",m:4},
+     {t:"KPI 대시보드 개발하기",d:"생산 KPI 대시보드 구성 기획",m:2},
+   ]},
+  {name:"이진성",total:2,msgs:6,dept:"마케팅/기획",team:"영업팀",
+   desc:"시장 진출 전략 연구, 노션 영업관리팀 설정 등 영업·기획 업무에 활용.",
+   tags:["GTM전략","영업관리","노션"],
+   convs:[
+     {t:"최고의 시장 진출 전략 연구하기",d:"신규 시장 진출을 위한 GTM 전략 연구",m:4},
+     {t:"노션 영업관리팀 설정",d:"노션 영업 관리 페이지 구성",m:2},
+   ]},
+  {name:"조춘기",total:2,msgs:20,dept:"경영/관리",team:"경영지원팀",
+   desc:"지분 담보 계약서 작성, 조직 구조 계획 등 경영 지원 업무에 Claude를 활용.",
+   tags:["계약서","조직기획","경영지원"],
+   convs:[
+     {t:"한앤브라더스 지분 담보 계약서 작성",d:"지분 담보 관련 계약서 초안 작성",m:10},
+     {t:"조직 구조 계획하기",d:"조직 구조 재편 계획 수립 보조",m:10},
+   ]},
+  {name:"귀부인",total:2,msgs:8,dept:"경영/관리",team:"경영지원팀",
+   desc:"양도세 납부 의무 확인, Claude 엔터프라이즈 요금제 정책 확인 등 경영 관련 정보 탐색.",
+   tags:["양도세","엔터프라이즈","법무"],
+   convs:[
+     {t:"엔터프라이즈 요금제 대화 공유 범위",d:"Claude 엔터프라이즈 대화 공유 정책 확인",m:6},
+     {t:"양도세 납부 의무 확인",d:"세금 납부 의무 및 절차 문의",m:2},
+   ]},
+  {name:"주호",total:2,msgs:16,dept:"생산/MD기획",team:"생산팀",
+   desc:"업무 프로세스 구축, 비즈니스 생태계 개발 기획 등 전략적 업무에 활용.",
+   tags:["프로세스구축","비즈니스기획"],
+   convs:[
+     {t:"프로세스 구축",d:"업무 프로세스 설계 및 개선",m:12},
+     {t:"개인적 관심사를 바탕으로 비즈니스 생태계 개발하기",d:"관심사 기반 비즈니스 모델 기획",m:4},
+   ]},
+  {name:"여름",total:2,msgs:12,dept:"마케팅/기획",team:"마케팅팀",
+   desc:"에뜨와몰 상세페이지 이미지의 텍스트 변환, 마케팅 전략 개발 등 마케팅 실무에 활용.",
+   tags:["상세페이지","마케팅전략","텍스트변환"],
+   convs:[
+     {t:"에뜨와몰 상세페이지 이미지를 텍스트 기반으로 변환",d:"이미지 기반 상세페이지를 텍스트 콘텐츠로 변환",m:6},
+     {t:"전략을 개발하고 다듬는 것을 도와주세요",d:"마케팅 전략 수립 보조",m:6},
+   ]},
+];
+
+// 1회 활용 사용자 (간소화)
+const SINGLE_USERS=[
+  {name:"임가람",total:1,msgs:19,dept:"마케팅/기획",team:"마케팅팀",convs:[{t:"시공매트 상세페이지 기획",d:"제품 상세페이지 기획 및 구성",m:19}]},
+  {name:"신한승",total:1,msgs:22,dept:"디자인/MD",team:"디자인팀",convs:[{t:"사업 확장 기회 계획하기",d:"사업 확장 전략 및 기회 탐색",m:22}]},
+  {name:"본부장님",total:1,msgs:38,dept:"디자인/MD",team:"디자인팀",convs:[{t:"예시를 통해 제 디자인 미학을 분석해주세요",d:"디자인 철학 및 미학 분석",m:38}]},
+  {name:"미경",total:1,msgs:10,dept:"디자인/MD",team:"디자인팀",convs:[{t:"창의적 팀을 놀라게 할 아이디어 워크샵 개요 작성하기",d:"창의성 워크샵 기획",m:10}]},
+  {name:"여울",total:1,msgs:12,dept:"경영/관리",team:"경영지원",convs:[{t:"전문적인 기술 개발하기",d:"전문 역량 개발 방향 탐색",m:12}]},
+  {name:"김명화",total:5,msgs:98,dept:"탐색/기타",team:"탐색중",convs:[]}, // already in detail
+  {name:"신상국 대표이사",total:2,msgs:4,dept:"경영/관리",team:"경영진",convs:[{t:"대표이사 클로드 설정 및 협업 지침 작성",d:"Claude 협업 지침 수립",m:2},{t:"2027 SS 시즌 기획보고 분석 및 개선안",d:"SS 시즌 기획보고 분석",m:2}]},
+  {name:"김지혜",total:1,msgs:2,dept:"디자인/MD",team:"디자인팀",convs:[{t:"아동복 패턴 제작 지원",d:"아동복 패턴 설계 보조",m:2}]},
+  {name:"다은",total:3,msgs:26,dept:"디자인/MD",team:"디자인팀",convs:[]},
+  {name:"현우",total:2,msgs:12,dept:"탐색/기타",team:"탐색중",convs:[{t:"오늘 날씨 확인",d:"서울 날씨 정보 확인",m:2},{t:"오늘 서울 날씨",d:"서울 상세 날씨 확인",m:10}]},
+  {name:"한영숙",total:2,msgs:6,dept:"디자인/MD",team:"디자인팀",convs:[{t:"예술 해석에 대해 논의하기",d:"예술 작품 해석 및 감상",m:2},{t:"사용방법 안내",d:"Claude 사용법 안내",m:4}]},
+  {name:"이승국",total:2,msgs:4,dept:"탐색/기타",team:"탐색중",convs:[{t:"주말 날씨 확인",d:"주말 날씨 정보",m:2},{t:"주말 전국 날씨 예보",d:"전국 날씨 예보",m:2}]},
+];
+
+const ALL_USER_DETAIL = [...USER_DETAILS, ...SINGLE_USERS];
+
+// ── ALL USERS GRID data ──
+const ALL_USERS_GRID=[
+  {name:"김관호",total:11,msgs:66,dept:"마케팅/기획"},
+  {name:"이동호",total:8,msgs:46,dept:"IT/개발"},
+  {name:"정미금",total:6,msgs:42,dept:"생산/MD기획"},
+  {name:"김명화",total:5,msgs:98,dept:"탐색/기타"},
+  {name:"유영민",total:5,msgs:24,dept:"마케팅/기획"},
+  {name:"조생곤",total:4,msgs:18,dept:"탐색/기타"},
+  {name:"ILHAE CHO",total:4,msgs:26,dept:"IT/개발"},
+  {name:"다은",total:3,msgs:26,dept:"디자인/MD"},
+  {name:"정승범",total:3,msgs:48,dept:"생산/MD기획"},
+  {name:"예감",total:3,msgs:20,dept:"탐색/기타"},
+  {name:"이승국",total:2,msgs:4,dept:"탐색/기타"},
+  {name:"조은정",total:2,msgs:14,dept:"디자인/MD"},
+  {name:"이진성",total:2,msgs:6,dept:"마케팅/기획"},
+  {name:"조춘기",total:2,msgs:20,dept:"경영/관리"},
+  {name:"신상국 대표이사",total:2,msgs:4,dept:"경영/관리"},
+  {name:"정선교",total:2,msgs:30,dept:"IT/개발"},
+  {name:"윤석호",total:2,msgs:6,dept:"생산/MD기획"},
+  {name:"여름",total:2,msgs:12,dept:"마케팅/기획"},
+  {name:"현우",total:2,msgs:12,dept:"탐색/기타"},
+  {name:"귀부인",total:2,msgs:8,dept:"경영/관리"},
+  {name:"주호",total:2,msgs:16,dept:"생산/MD기획"},
+  {name:"한영숙",total:2,msgs:6,dept:"디자인/MD"},
+  {name:"김지혜",total:1,msgs:2,dept:"디자인/MD"},
+  {name:"김명미",total:1,msgs:4,dept:"디자인/MD"},
+  {name:"장한희",total:1,msgs:2,dept:"탐색/기타"},
+  {name:"양다빈",total:1,msgs:4,dept:"마케팅/기획"},
+  {name:"김상준",total:1,msgs:2,dept:"탐색/기타"},
+  {name:"goneiz",total:1,msgs:4,dept:"디자인/MD"},
+  {name:"안예지",total:1,msgs:4,dept:"IT/개발"},
+  {name:"eunji jung",total:1,msgs:2,dept:"탐색/기타"},
+  {name:"suji",total:1,msgs:6,dept:"탐색/기타"},
+  {name:"조정환",total:1,msgs:2,dept:"탐색/기타"},
+  {name:"신광호",total:1,msgs:8,dept:"탐색/기타"},
+  {name:"박소리",total:1,msgs:2,dept:"탐색/기타"},
+  {name:"혜령",total:1,msgs:4,dept:"탐색/기타"},
+  {name:"조은아",total:1,msgs:2,dept:"탐색/기타"},
+  {name:"기훈",total:1,msgs:2,dept:"탐색/기타"},
+  {name:"형진",total:1,msgs:4,dept:"탐색/기타"},
+  {name:"형님",total:1,msgs:6,dept:"IT/개발"},
+  {name:"셀라",total:1,msgs:0,dept:"탐색/기타"},
+  {name:"김장환",total:1,msgs:2,dept:"탐색/기타"},
+  {name:"초코푸들",total:1,msgs:2,dept:"디자인/MD"},
+  {name:"양순과장",total:1,msgs:2,dept:"탐색/기타"},
+  {name:"희주",total:1,msgs:4,dept:"생산/MD기획"},
+  {name:"신림",total:1,msgs:2,dept:"탐색/기타"},
+  {name:"유병일",total:1,msgs:6,dept:"생산/MD기획"},
+  {name:"최성민",total:1,msgs:2,dept:"생산/MD기획"},
+  {name:"권진",total:1,msgs:4,dept:"디자인/MD"},
+  {name:"이동영",total:1,msgs:4,dept:"탐색/기타"},
+  {name:"여울",total:1,msgs:12,dept:"경영/관리"},
+  {name:"미경",total:1,msgs:10,dept:"디자인/MD"},
+  {name:"신한승",total:1,msgs:22,dept:"탐색/기타"},
+  {name:"김예원",total:1,msgs:4,dept:"IT/개발"},
+  {name:"본부장님",total:1,msgs:38,dept:"디자인/MD"},
+  {name:"한경훈",total:1,msgs:2,dept:"IT/개발"},
+  {name:"권하린",total:1,msgs:4,dept:"디자인/MD"},
+  {name:"원소임",total:1,msgs:4,dept:"생산/MD기획"},
+  {name:"changhee",total:1,msgs:4,dept:"디자인/MD"},
+  {name:"임가람",total:1,msgs:19,dept:"마케팅/기획"},
+  // 미활동
+  {name:"서민정",total:0,msgs:0,dept:"none"},{name:"홍미나",total:0,msgs:0,dept:"none"},
+  {name:"남경화",total:0,msgs:0,dept:"none"},{name:"이화현",total:0,msgs:0,dept:"none"},
+  {name:"김성용",total:0,msgs:0,dept:"none"},{name:"가연",total:0,msgs:0,dept:"none"},
+  {name:"박소정 전무님",total:0,msgs:0,dept:"none"},{name:"이영미",total:0,msgs:0,dept:"none"},
+  {name:"정의현",total:0,msgs:0,dept:"none"},{name:"홍윤아",total:0,msgs:0,dept:"none"},
+  {name:"신지영",total:0,msgs:0,dept:"none"},{name:"진수홍",total:0,msgs:0,dept:"none"},
+  {name:"사용자님",total:0,msgs:0,dept:"none"},{name:"자유",total:0,msgs:0,dept:"none"},
+  {name:"김본부장",total:0,msgs:0,dept:"none"},{name:"양다빈(미등록)",total:0,msgs:0,dept:"none"},
+  {name:"조정환(미활동)",total:0,msgs:0,dept:"none"},{name:"이동영(미활동)",total:0,msgs:0,dept:"none"},
+  {name:"한영숙(미활동)",total:0,msgs:0,dept:"none"},{name:"이승국(미활동)",total:0,msgs:0,dept:"none"},
+  {name:"박소리(미활동)",total:0,msgs:0,dept:"none"},{name:"이진성(미활동)",total:0,msgs:0,dept:"none"},
+  {name:"조은아(미활동)",total:0,msgs:0,dept:"none"},{name:"여울(미활동)",total:0,msgs:0,dept:"none"},
+];
+
+// ════ TAB LOGIC ════
+const ALL_PANELS=['overview','userdetail','pattern','highlight','allusers','marketing','it','design','production','management','etc'];
+
+function showTab(key){
+  ALL_PANELS.forEach(p=>{
+    const el=document.getElementById('panel-'+p);
+    if(el) el.style.display='none';
+  });
+  document.getElementById('panel-'+key).style.display='block';
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.remove('active'));
+  const order=['overview','userdetail','pattern','highlight','allusers','marketing','it','design','production','management','etc'];
+  document.querySelectorAll('.tab-btn')[order.indexOf(key)]?.classList.add('active');
+}
+
+// ════ USER DETAIL ════
+let udFilter='all';
+
+function setUdFilter(f,btn){
+  udFilter=f;
+  document.querySelectorAll('.ud-filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderUserDetail();
+}
+
+function renderUserDetail(){
+  const search=document.getElementById('udSearch').value.toLowerCase();
+  const list=document.getElementById('userDetailList');
+  list.innerHTML='';
+
+  let data=[...USER_DETAILS,...SINGLE_USERS.filter(u=>!USER_DETAILS.find(d=>d.name===u.name))];
+  // deduplicate
+  const seen=new Set();
+  data=data.filter(u=>{if(seen.has(u.name))return false;seen.add(u.name);return true;});
+
+  if(udFilter!=='all') data=data.filter(u=>u.dept===udFilter);
+  if(search) data=data.filter(u=>u.name.toLowerCase().includes(search));
+
+  data.forEach(user=>{
+    const c=DEPT_COLORS[user.dept]||DEPT_COLORS['탐색/기타'];
+    const initial=user.name.slice(0,1);
+    const card=document.createElement('div');
+    card.className='user-detail-card';
+    const convHtml=(user.convs||[]).map(cv=>`
+      <div class="udc-conv-item">
+        <div class="udc-conv-dot"></div>
+        <div style="flex:1;min-width:0">
+          <div class="udc-conv-title">${cv.t}</div>
+          <div class="udc-conv-sub">${cv.d}</div>
+        </div>
+        <div class="udc-conv-badge">${cv.m}개 메시지</div>
+      </div>`).join('');
+    const tagsHtml=(user.tags||[]).map(t=>`<span class="tag" style="background:${c.bg};border-color:${c.border};color:${c.text}">${t}</span>`).join('');
+    card.innerHTML=`
+      <div class="udc-header" onclick="toggleConvs(this)">
+        <div class="udc-avatar" style="background:${c.ava}">${initial}</div>
+        <div class="udc-meta">
+          <h3>${user.name}</h3>
+          <div class="udc-sub">${user.team||user.dept} · ${user.total}건 대화 · ${user.msgs}개 메시지</div>
+        </div>
+        <div class="udc-toggle">▼</div>
+      </div>
+      ${user.desc?`<div class="udc-desc">${user.desc}${tagsHtml?`<div class="udc-tags">${tagsHtml}</div>`:''}</div>`:''}
+      <div class="udc-convs">${convHtml}</div>`;
+    list.appendChild(card);
+  });
+}
+
+function toggleConvs(header){
+  const card=header.closest('.user-detail-card');
+  const convs=card.querySelector('.udc-convs');
+  const toggle=card.querySelector('.udc-toggle');
+  if(!convs)return;
+  const open=convs.style.display==='block';
+  convs.style.display=open?'none':'block';
+  toggle.textContent=open?'▼':'▲';
+}
+
+// ════ ALL USERS GRID ════
+let allUserFilter='all';
+
+function setAllFilter(f,btn){
+  allUserFilter=f;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderAllUserGrid();
+}
+function filterAllUsers(){renderAllUserGrid();}
+
+function renderAllUserGrid(){
+  const grid=document.getElementById('allUserGrid');
+  grid.innerHTML='';
+  const search=(document.getElementById('allUserSearch')?.value||'').toLowerCase();
+  let data=[...ALL_USERS_GRID];
+  if(allUserFilter!=='all'){
+    if(allUserFilter==='none') data=data.filter(u=>u.total===0);
+    else data=data.filter(u=>u.dept===allUserFilter&&u.total>0);
+  }
+  if(search) data=data.filter(u=>u.name.toLowerCase().includes(search));
+  data.forEach(user=>{
+    const c=DEPT_COLORS[user.dept]||DEPT_COLORS.none;
+    const deptLabel=user.dept==='none'?'미활동':user.dept;
+    const card=document.createElement('div');
+    card.className='user-card'+(user.total===0?' no-activity':'');
+    card.innerHTML=`
+      <div class="user-card-top">
+        <div class="user-ava" style="background:${c.ava}">${user.name.slice(0,1)}</div>
+        <div>
+          <div class="user-card-name">${user.name}</div>
+          <span class="user-card-dept-badge" style="background:${c.bg};border:1px solid ${c.border};color:${c.text}">${deptLabel}</span>
+        </div>
+      </div>
+      <div class="user-card-stats">
+        <div class="user-card-stat"><div class="sv">${user.total}</div><div class="sl">대화</div></div>
+        <div class="user-card-stat"><div class="sv">${user.msgs}</div><div class="sl">메시지</div></div>
+        <div class="user-card-stat"><div class="sv">${user.total>0?Math.round(user.msgs/user.total):0}</div><div class="sl">평균</div></div>
+      </div>`;
+    grid.appendChild(card);
+  });
+}
+
+// ════ DEPT PANELS ════
+function renderConvList(key,data){
+  const ul=document.getElementById('list-'+key);
+  if(!ul)return;
+  data.forEach(c=>{
+    const li=document.createElement('li');
+    li.className='conv-item';
+    li.innerHTML=`<div class="conv-avatar">${c.user.slice(0,1)}</div>
+      <div style="flex:1;min-width:0"><div class="conv-name">${c.name||'(제목없음)'}</div><div class="conv-user">${c.user}</div></div>
+      <div class="conv-msgs">${c.msgs}msg</div>`;
+    ul.appendChild(li);
+  });
+}
+function renderRank(key,data){
+  const el=document.getElementById('rank-'+key);
+  if(!el)return;
+  const uc={};
+  data.forEach(c=>{uc[c.user]=(uc[c.user]||0)+1});
+  Object.entries(uc).sort((a,b)=>b[1]-a[1]).slice(0,5).forEach(([name,cnt],i)=>{
+    const max=Object.values(uc).sort((a,b)=>b-a)[0];
+    const row=document.createElement('div');
+    row.className='rank-row';
+    row.innerHTML=`<div class="rank-num ${i<3?'top':''}">${i+1}</div>
+      <div class="rank-name">${name}</div>
+      <div class="rank-bar-wrap"><div class="rank-bar" style="width:${(cnt/max*100).toFixed(0)}%"></div></div>
+      <div class="rank-count">${cnt}건</div>`;
+    el.appendChild(row);
+  });
+}
+
+// ════ OVERVIEW RANK ════
+const TOP10=[
+  {name:"김관호",count:11},{name:"이동호",count:8},{name:"정미금",count:6},
+  {name:"김명화",count:5},{name:"유영민",count:5},{name:"조생곤",count:4},
+  {name:"ILHAE CHO",count:4},{name:"다은",count:3},{name:"정승범",count:3},{name:"예감",count:3},
+];
+function renderOverviewRank(){
+  const el=document.getElementById('rankOverview');
+  TOP10.forEach(({name,count},i)=>{
+    const row=document.createElement('div');
+    row.className='rank-row';
+    row.innerHTML=`<div class="rank-num ${i<3?'top':''}">${i+1}</div>
+      <div class="rank-name">${name}</div>
+      <div class="rank-bar-wrap" style="width:120px"><div class="rank-bar" style="width:${(count/11*100).toFixed(0)}%"></div></div>
+      <div class="rank-count">${count}건</div>`;
+    el.appendChild(row);
+  });
+}
+
+// ════ CHARTS ════
+Chart.defaults.font.family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans-serif";
+
+function initDonut(){
+  new Chart(document.getElementById('donutChart'),{
+    type:'doughnut',
+    data:{
+      labels:['마케팅/기획','IT/개발','디자인/MD','생산/MD기획','경영/관리','탐색/기타'],
+      datasets:[{data:[17,18,27,9,7,35],
+        backgroundColor:['#4F81BD','#4CAF80','#9B6FC5','#E57C3A','#6c63ff','#9ca3af'],
+        borderColor:'#ffffff',borderWidth:3,hoverOffset:8}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',
+      plugins:{legend:{display:false},tooltip:{backgroundColor:'#fff',titleColor:'#1a1a2e',bodyColor:'#6b7280',borderColor:'#e8eaf0',borderWidth:1,
+        callbacks:{label:ctx=>` ${ctx.label}: ${ctx.raw}건 (${(ctx.raw/113*100).toFixed(1)}%)`}}}}
+  });
+}
+
+function initDailyChart(){
+  new Chart(document.getElementById('dailyChart'),{
+    type:'bar',
+    data:{
+      labels:['04-07','04-08','04-09','04-10'],
+      datasets:[
+        {label:'대화 수',data:[6,33,48,26],backgroundColor:'rgba(108,99,255,.7)',borderRadius:6,borderSkipped:false,yAxisID:'y'},
+        {label:'메시지 수',data:[32,172,408,147],backgroundColor:'rgba(167,139,250,.35)',borderRadius:6,borderSkipped:false,yAxisID:'y1'},
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#6b7280',font:{size:11}}},tooltip:{backgroundColor:'#fff',titleColor:'#1a1a2e',bodyColor:'#6b7280',borderColor:'#e8eaf0',borderWidth:1}},
+      scales:{
+        x:{ticks:{color:'#9ca3af'},grid:{color:'rgba(0,0,0,.04)'}},
+        y:{ticks:{color:'#9ca3af'},grid:{color:'rgba(0,0,0,.04)'},beginAtZero:true,title:{display:true,text:'대화 수',color:'#9ca3af',font:{size:10}}},
+        y1:{position:'right',ticks:{color:'#9ca3af'},grid:{display:false},beginAtZero:true,title:{display:true,text:'메시지 수',color:'#9ca3af',font:{size:10}}},
+      }}
+  });
+}
+
+function initHourlyChart(){
+  const counts=[65,36,61,18,9,37,39,47,18,17,10,11,1,0,0,0,0,0,0,0,0,0,0,11];
+  new Chart(document.getElementById('hourlyChart'),{
+    type:'line',
+    data:{
+      labels:counts.map((_,i)=>i.toString().padStart(2,'0')+'시'),
+      datasets:[{label:'메시지 수',data:counts,borderColor:'#6c63ff',
+        backgroundColor:(ctx)=>{const g=ctx.chart.ctx.createLinearGradient(0,0,0,240);g.addColorStop(0,'rgba(108,99,255,.25)');g.addColorStop(1,'rgba(108,99,255,.01)');return g},
+        fill:true,tension:.4,pointBackgroundColor:'#6c63ff',pointRadius:3,pointHoverRadius:6,borderWidth:2}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{backgroundColor:'#fff',titleColor:'#1a1a2e',bodyColor:'#6b7280',borderColor:'#e8eaf0',borderWidth:1}},
+      scales:{x:{ticks:{color:'#9ca3af',font:{size:10}},grid:{color:'rgba(0,0,0,.04)'}},y:{ticks:{color:'#9ca3af'},grid:{color:'rgba(0,0,0,.04)'},beginAtZero:true}}}
+  });
+}
+
+function initHeatmap(){
+  const counts=[65,36,61,18,9,37,39,47,18,17,10,11,1,0,0,0,0,0,0,0,0,0,0,11];
+  const max=Math.max(...counts);
+  const el=document.getElementById('heatmap');
+  counts.forEach((cnt,i)=>{
+    const cell=document.createElement('div');
+    cell.style.cssText=`aspect-ratio:1;border-radius:5px;position:relative;cursor:default;background:${cnt===0?'#e8eaf0':cnt/max<.3?'#c7c0f5':cnt/max<.6?'#9087e5':'#6c63ff'}`;
+    const tip=document.createElement('div');
+    tip.style.cssText='display:none;position:absolute;bottom:110%;left:50%;transform:translateX(-50%);background:#1a1a2e;color:#fff;font-size:10px;padding:3px 7px;border-radius:5px;white-space:nowrap;z-index:10;pointer-events:none';
+    tip.textContent=`${i.toString().padStart(2,'0')}시: ${cnt}회`;
+    cell.appendChild(tip);
+    cell.addEventListener('mouseenter',()=>tip.style.display='block');
+    cell.addEventListener('mouseleave',()=>tip.style.display='none');
+    el.appendChild(cell);
+  });
+}
+
+// ════ INIT ════
+document.addEventListener('DOMContentLoaded',()=>{
+  initDonut();
+  initDailyChart();
+  initHourlyChart();
+  initHeatmap();
+  renderOverviewRank();
+  renderUserDetail();
+  renderAllUserGrid();
+  Object.entries(DEPT_DATA).forEach(([k,v])=>{renderConvList(k,v);renderRank(k,v)});
+});
+</script>
+</body>
+</html>
